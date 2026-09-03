@@ -1,6 +1,6 @@
 # Architecture: Shared Household Chores Tracker
 
-This document outlines the high-level architecture and data models for our Django-based application.
+This document outlines the high-level architecture and data models for our Django-based application, which supports isolated households for roommates and large families.
 
 ## High-Level Architecture
 
@@ -8,8 +8,8 @@ Our app follows a classic monolithic MVC (Model-View-Controller, or MTV in Djang
 
 ```mermaid
 graph TD
-    User([User (Roommate)])
-    Admin([Admin])
+    User([User (Roommate/Family)])
+    Admin([Household Admin])
     Telegram([Telegram API])
     
     subgraph Django Application
@@ -22,7 +22,7 @@ graph TD
     DB[(SQLite/PostgreSQL)]
 
     User -->|HTTP GET/POST| Views
-    Admin -->|HTTP GET/POST (Admin Panel)| Views
+    Admin -->|HTTP GET/POST| Views
     
     Views <-->|Read/Write| Models
     Models <-->|Queries| DB
@@ -44,21 +44,30 @@ graph TD
 
 ## Data Models
 
-The core entities revolve around tracking users, schedules, specific tasks, and swap requests. 
+The core entities revolve around tracking households (families/apartments), users, schedules, specific tasks, and swap requests. 
 
 ```mermaid
 erDiagram
+    Household {
+        int id
+        string name
+        string join_code
+    }
+
     CustomUser {
         int id
         string username
         string email
         string telegram_chat_id
+        string role
+        int household_id FK
     }
     
     DutySchedule {
         int id
         date week_start_date
         int assigned_user_id FK
+        int household_id FK
     }
 
     Task {
@@ -79,6 +88,8 @@ erDiagram
         string status
     }
 
+    Household ||--o{ CustomUser : "has members"
+    Household ||--o{ DutySchedule : "has schedules"
     CustomUser ||--o{ DutySchedule : "assigned to"
     DutySchedule ||--o{ Task : "contains tasks"
     CustomUser ||--o{ SwapRequest : "requests/receives"
@@ -90,13 +101,14 @@ erDiagram
 1. **Frontend (Django Templates):**
    - Server-side rendered HTML using Django's templating engine.
    - Styled with modern Vanilla CSS for a premium look.
-   - Core pages: Dashboard (current tasks), Schedule & Swaps, Admin Panel.
+   - Core pages: Dashboard (current tasks), Schedule & Swaps, Household Management (Admin).
 
 2. **Database:**
    - **SQLite** for development and MVP. Easily upgradeable to **PostgreSQL** in the future.
    - Django ORM handles all database interactions.
+   - Multi-tenancy is handled via the `Household` foreign key on users and schedules.
 
 3. **Background Notification System:**
-   - **System Cron**: Instead of embedding the scheduler inside the web process (which causes issues with multiple workers like Gunicorn), we will write a custom Django management command (`python manage.py send_telegram_reminders`).
+   - **System Cron**: We will write a custom Django management command (`python manage.py send_telegram_reminders`).
    - The OS `cron` will trigger this command every 3 hours.
-   - The command queries the `Task` model for incomplete tasks due today, looks up the current `DutySchedule`, and sends a message to the `assigned_user`'s Telegram via the `requests` library.
+   - The command queries the `Task` model for incomplete tasks due today, looks up the assigned user's Telegram via the `DutySchedule`, and sends a message using the `requests` library.
