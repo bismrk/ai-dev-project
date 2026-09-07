@@ -1,7 +1,7 @@
 import uuid
 from django.db import models
 from django.contrib.auth.models import AbstractUser
-
+from django.conf import settings
 def generate_join_code():
     return uuid.uuid4().hex[:8].upper()
 
@@ -27,11 +27,16 @@ class CustomUser(AbstractUser):
 
 class DutySchedule(models.Model):
     week_start_date = models.DateField()
-    assigned_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='duty_schedules')
+    assigned_user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='duty_schedules')
     household = models.ForeignKey(Household, on_delete=models.CASCADE, related_name='duty_schedules')
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['week_start_date', 'household'], name='unique_duty_schedule_per_week')
+        ]
+
     def __str__(self):
-        return f"{self.household.name} - {self.week_start_date} ({self.assigned_user.username})"
+        return f"{self.household.name} - Week of {self.week_start_date}"
 
 class Task(models.Model):
     title = models.CharField(max_length=255)
@@ -42,7 +47,7 @@ class Task(models.Model):
     duty_schedule = models.ForeignKey(DutySchedule, on_delete=models.CASCADE, related_name='tasks')
 
     def __str__(self):
-        return f"{self.title} - {self.due_date}"
+        return self.title
 
 class SwapRequest(models.Model):
     STATUS_CHOICES = (
@@ -50,10 +55,10 @@ class SwapRequest(models.Model):
         ('accepted', 'Accepted'),
         ('rejected', 'Rejected'),
     )
-    from_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='sent_swap_requests')
-    to_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='received_swap_requests')
+    from_user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='swap_requests_sent')
+    to_user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='swap_requests_received')
     target_schedule = models.ForeignKey(DutySchedule, on_delete=models.CASCADE, related_name='swap_requests')
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
