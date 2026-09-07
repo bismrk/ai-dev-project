@@ -150,3 +150,57 @@ def swaps(request):
         'incoming_requests': incoming_requests,
         'outgoing_requests': outgoing_requests
     })
+
+from django.db import IntegrityError
+
+@login_required
+def manage_chores(request):
+    if not request.user.household:
+        return redirect('onboarding')
+
+    household = request.user.household
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'create_schedule':
+            week_start_date = request.POST.get('week_start_date')
+            assigned_user_id = request.POST.get('assigned_user_id')
+            try:
+                assigned_user = CustomUser.objects.get(id=assigned_user_id, household=household)
+                DutySchedule.objects.create(
+                    week_start_date=week_start_date,
+                    assigned_user=assigned_user,
+                    household=household
+                )
+            except (CustomUser.DoesNotExist, IntegrityError, ValueError):
+                pass
+                
+        elif action == 'create_task':
+            schedule_id = request.POST.get('schedule_id')
+            title = request.POST.get('title')
+            description = request.POST.get('description', '')
+            due_date = request.POST.get('due_date')
+            deadline_time = request.POST.get('deadline_time')
+            
+            try:
+                schedule = DutySchedule.objects.get(id=schedule_id, household=household)
+                Task.objects.create(
+                    title=title,
+                    description=description,
+                    due_date=due_date,
+                    deadline_time=deadline_time,
+                    duty_schedule=schedule
+                )
+            except (DutySchedule.DoesNotExist, ValueError):
+                pass
+                
+        return redirect('manage_chores')
+
+    members = CustomUser.objects.filter(household=household)
+    schedules = DutySchedule.objects.filter(household=household, week_start_date__gte=date.today()).order_by('week_start_date')
+    
+    return render(request, 'chores/manage.html', {
+        'members': members,
+        'schedules': schedules,
+    })
