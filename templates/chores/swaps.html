@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+
+{% block title %}Duty Swaps - Chores Tracker{% endblock %}
+
+{% block content %}
+<h1 style="color: var(--primary-color); margin-bottom: 2rem;">Duty Swaps</h1>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+    <!-- Incoming Requests -->
+    <div class="card">
+        <h2 style="margin-bottom: 1rem;">Incoming Requests</h2>
+        {% for req in incoming_requests %}
+            <div style="background-color: var(--bg-color); padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border: 1px solid var(--primary-color);">
+                <p><strong>{{ req.from_user.username }}</strong> wants to swap their duty for the week of <strong>{{ req.target_schedule.week_start_date }}</strong> with you.</p>
+                <form method="post" style="margin-top: 1rem; display: flex; gap: 1rem;">
+                    {% csrf_token %}
+                    <input type="hidden" name="swap_id" value="{{ req.id }}">
+                    <button type="submit" name="action" value="accept" class="btn btn-primary">Accept</button>
+                    <button type="submit" name="action" value="reject" class="btn btn-danger">Reject</button>
+                </form>
+            </div>
+        {% empty %}
+            <p style="color: var(--text-secondary);">No incoming requests.</p>
+        {% endfor %}
+    </div>
+
+    <!-- Request a Swap -->
+    <div class="card">
+        <h2 style="margin-bottom: 1rem;">Request a Swap</h2>
+        {% if my_schedules %}
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="request_swap">
+                <div class="form-group">
+                    <label>Select Your Duty Week:</label>
+                    <select name="schedule_id" class="form-control" required>
+                        <option value="">-- Select Week --</option>
+                        {% for schedule in my_schedules %}
+                            <option value="{{ schedule.id }}">{{ schedule.week_start_date }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Ask this roommate to cover for you:</label>
+                    <select name="to_user_id" class="form-control" required>
+                        <option value="">-- Select Person --</option>
+                        {% for member in other_members %}
+                            <option value="{{ member.id }}">{{ member.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">Send Swap Request</button>
+            </form>
+        {% else %}
+            <p style="color: var(--text-secondary);">You don't have any upcoming duty weeks to swap.</p>
+        {% endif %}
+
+        <h3 style="margin-top: 2rem; margin-bottom: 1rem;">My Outgoing Requests</h3>
+        {% for req in outgoing_requests %}
+            <div style="background-color: var(--bg-color); padding: 0.75rem; border-radius: 8px; margin-bottom: 0.5rem; display: flex; justify-content: space-between; border: 1px solid var(--border-color);">
+                <span>To {{ req.to_user.username }} for week {{ req.target_schedule.week_start_date }}</span>
+                <span style="font-weight: bold; color: {% if req.status == 'accepted' %}var(--success-color){% elif req.status == 'rejected' %}var(--danger-color){% else %}var(--text-secondary){% endif %};">
+                    {{ req.status|title }}
+                </span>
+            </div>
+        {% empty %}
+            <p style="color: var(--text-secondary); font-size: 0.9rem;">None.</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

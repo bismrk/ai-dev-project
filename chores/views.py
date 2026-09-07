@@ -53,8 +53,100 @@ def onboarding(request):
         'join_form': join_form
     })
 
+from datetime import date
+from .models import Household, Task, SwapRequest, DutySchedule, CustomUser
+
 @login_required
 def dashboard(request):
     if not request.user.household:
         return redirect('onboarding')
-    return render(request, 'chores/dashboard.html')
+        
+    today = date.today()
+    
+    tasks = Task.objects.filter(
+        duty_schedule__household=request.user.household,
+        due_date=today
+    )
+    
+    todo_tasks = tasks.filter(status=False).order_by('deadline_time')
+    done_tasks = tasks.filter(status=True).order_by('deadline_time')
+    
+    if request.method == 'POST' and 'toggle_task' in request.POST:
+        task_id = request.POST.get('task_id')
+        try:
+            task = Task.objects.get(id=task_id, duty_schedule__household=request.user.household)
+            task.status = not task.status
+            task.save()
+            return redirect('dashboard')
+        except Task.DoesNotExist:
+            pass
+            
+    return render(request, 'chores/dashboard.html', {
+        'todo_tasks': todo_tasks,
+        'done_tasks': done_tasks,
+        'today': today
+    })
+
+@login_required
+def swaps(request):
+    if not request.user.household:
+        return redirect('onboarding')
+
+    household = request.user.household
+    
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        # Handle Swap Request Accept/Reject
+        if action in ['accept', 'reject']:
+            swap_id = request.POST.get('swap_id')
+            try:
+                swap = SwapRequest.objects.get(id=swap_id, to_user=request.user, status='pending')
+                if action == 'accept':
+                    swap.status = 'accepted'
+                    # Perform the swap: assign the target_schedule to the to_user
+                    schedule = swap.target_schedule
+                    schedule.assigned_user = request.user
+                    schedule.save()
+                else:
+                    swap.status = 'rejected'
+                swap.save()
+            except SwapRequest.DoesNotExist:
+                pass
+                
+        # Handle new swap request
+        elif action == 'request_swap':
+            target_schedule_id = request.POST.get('schedule_id')
+            to_user_id = request.POST.get('to_user_id')
+            try:
+                schedule = DutySchedule.objects.get(id=target_schedule_id, assigned_user=request.user)
+                to_user = CustomUser.objects.get(id=to_user_id, household=household)
+                SwapRequest.objects.create(
+                    from_user=request.user,
+                    to_user=to_user,
+                    target_schedule=schedule,
+                    status='pending'
+                )
+            except (DutySchedule.DoesNotExist, CustomUser.DoesNotExist, ValueError):
+                pass
+                
+        return redirect('swaps')
+
+    # Get user's upcoming schedules
+    my_schedules = DutySchedule.objects.filter(assigned_user=request.user, week_start_date__gte=date.today())
+    
+    # Get other members to send requests to
+    other_members = CustomUser.objects.filter(household=household).exclude(id=request.user.id)
+    
+    # Get pending swap requests TO the user
+    incoming_requests = SwapRequest.objects.filter(to_user=request.user, status='pending')
+    
+    # Get swap requests FROM the user
+    outgoing_requests = SwapRequest.objects.filter(from_user=request.user).order_by('-created_at')
+
+    return render(request, 'chores/swaps.html', {
+        'my_schedules': my_schedules,
+        'other_members': other_members,
+        'incoming_requests': incoming_requests,
+        'outgoing_requests': outgoing_requests
+    })

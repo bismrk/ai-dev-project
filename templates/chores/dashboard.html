@@ -8,10 +8,53 @@
         <h1 style="color: var(--primary-color);">{{ user.household.name }}</h1>
         <p style="color: var(--text-secondary);">Join Code: <strong>{{ user.household.join_code }}</strong></p>
     </div>
+    <div>
+        <a href="{% url 'swaps' %}" class="btn btn-primary">Swaps</a>
+    </div>
 </div>
 
-<div class="card">
-    <h2>My Tasks for Today</h2>
-    <p style="color: var(--text-secondary);">No tasks currently assigned to you.</p>
+<h2 style="margin-bottom: 1rem;">Tasks for {{ today }}</h2>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+    <!-- To Do Column -->
+    <div class="card">
+        <h3 style="color: var(--danger-color); margin-bottom: 1rem;">To Do</h3>
+        {% for task in todo_tasks %}
+            <div style="background-color: var(--bg-color); padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border: 1px solid var(--border-color);">
+                <div style="display: flex; justify-content: space-between;">
+                    <strong>{{ task.title }}</strong>
+                    <span style="color: var(--text-secondary);">{{ task.deadline_time|time:"H:i" }}</span>
+                </div>
+                <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.5rem;">{{ task.description }}</p>
+                <form method="post" style="margin-top: 1rem;">
+                    {% csrf_token %}
+                    <input type="hidden" name="task_id" value="{{ task.id }}">
+                    <button type="submit" name="toggle_task" class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">Mark Done</button>
+                </form>
+            </div>
+        {% empty %}
+            <p style="color: var(--text-secondary);">No tasks to do!</p>
+        {% endfor %}
+    </div>
+
+    <!-- Done Column -->
+    <div class="card">
+        <h3 style="color: var(--success-color); margin-bottom: 1rem;">Done</h3>
+        {% for task in done_tasks %}
+            <div style="background-color: var(--bg-color); padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border: 1px solid var(--border-color); opacity: 0.7;">
+                <div style="display: flex; justify-content: space-between;">
+                    <strong style="text-decoration: line-through;">{{ task.title }}</strong>
+                    <span style="color: var(--text-secondary);">{{ task.deadline_time|time:"H:i" }}</span>
+                </div>
+                <form method="post" style="margin-top: 1rem;">
+                    {% csrf_token %}
+                    <input type="hidden" name="task_id" value="{{ task.id }}">
+                    <button type="submit" name="toggle_task" class="btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; border: 1px solid var(--border-color); color: var(--text-secondary);">Undo</button>
+                </form>
+            </div>
+        {% empty %}
+            <p style="color: var(--text-secondary);">No tasks done yet.</p>
+        {% endfor %}
+    </div>
 </div>
 {% endblock %}
