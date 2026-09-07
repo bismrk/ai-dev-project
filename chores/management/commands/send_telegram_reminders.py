@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand
 from datetime import date
 from chores.models import Task, DutySchedule
-from chores.telegram_utils import send_telegram_message
+from chores.utils.telegram import send_telegram_message
 
 class Command(BaseCommand):
     help = 'Sends Telegram reminders for pending tasks due today.'
