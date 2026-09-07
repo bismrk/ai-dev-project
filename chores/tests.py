@@ -235,3 +235,33 @@ class DutySwapViewTest(TestCase):
         self.assertEqual(swap.status, 'accepted')
         self.schedule.refresh_from_db()
         self.assertEqual(self.schedule.assigned_user, self.user2)
+
+from unittest.mock import patch
+from .utils.telegram import send_telegram_message
+
+class TelegramUtilityTest(TestCase):
+    @patch('chores.utils.telegram.requests.post')
+    def test_send_telegram_message(self, mock_post):
+        mock_response = mock_post.return_value
+        mock_response.raise_for_status.return_value = None
+        
+        with override_settings(TELEGRAM_BOT_TOKEN='fake_token'):
+            result = send_telegram_message('12345', 'Hello World')
+            
+            self.assertTrue(result)
+            mock_post.assert_called_once_with(
+                'https://api.telegram.org/botfake_token/sendMessage',
+                json={
+                    'chat_id': '12345',
+                    'text': 'Hello World',
+                    'parse_mode': 'HTML'
+                },
+                timeout=5
+            )
+
+    @patch('chores.utils.telegram.requests.post')
+    def test_send_telegram_message_no_token(self, mock_post):
+        with override_settings(TELEGRAM_BOT_TOKEN=''):
+            result = send_telegram_message('12345', 'Hello World')
+            self.assertFalse(result)
+            mock_post.assert_not_called()
