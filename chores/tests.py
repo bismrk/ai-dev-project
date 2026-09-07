@@ -140,3 +140,98 @@ class FrontendBaseLayoutTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '<html lang="en">')
         self.assertContains(response, 'css/style.css')
+
+from django.contrib.auth import get_user_model
+CustomUser = get_user_model()
+
+class OnboardingViewTest(TestCase):
+    def setUp(self):
+        self.user = CustomUser.objects.create_user(username="onboard_user", password="password123")
+
+    def test_create_household_view(self):
+        self.client.login(username="onboard_user", password="password123")
+        response = self.client.post('/onboarding/', {
+            'create': 'create',
+            'name': 'New House'
+        })
+        self.user.refresh_from_db()
+        self.assertIsNotNone(self.user.household)
+        self.assertEqual(self.user.household.name, 'New House')
+        self.assertEqual(self.user.role, 'admin')
+        self.assertRedirects(response, '/') # wait, dashboard is just '/'
+
+    def test_join_household_view(self):
+        household = Household.objects.create(name="Join House")
+        self.client.login(username="onboard_user", password="password123")
+        response = self.client.post('/onboarding/', {
+            'join': 'join',
+            'join_code': household.join_code
+        })
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.household, household)
+        self.assertEqual(self.user.role, 'member')
+        self.assertRedirects(response, '/')
+
+from .models import Task, DutySchedule
+from datetime import date
+
+class DashboardViewTest(TestCase):
+    def setUp(self):
+        self.household_a = Household.objects.create(name="House A")
+        self.household_b = Household.objects.create(name="House B")
+        
+        self.user_a = CustomUser.objects.create_user(username="user_a", password="password123", household=self.household_a)
+        self.user_b = CustomUser.objects.create_user(username="user_b", password="password123", household=self.household_b)
+        
+        self.schedule_a = DutySchedule.objects.create(week_start_date=date.today(), assigned_user=self.user_a, household=self.household_a)
+        self.schedule_b = DutySchedule.objects.create(week_start_date=date.today(), assigned_user=self.user_b, household=self.household_b)
+        
+        self.task_a = Task.objects.create(title="Task A", duty_schedule=self.schedule_a, due_date=date.today(), deadline_time="18:00:00", status=False)
+        self.task_b = Task.objects.create(title="Task B", duty_schedule=self.schedule_b, due_date=date.today(), deadline_time="18:00:00", status=False)
+
+    def test_dashboard_multi_tenancy(self):
+        self.client.login(username="user_a", password="password123")
+        response = self.client.get('/')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Task A")
+        self.assertNotContains(response, "Task B")
+
+    def test_dashboard_rendering(self):
+        self.client.login(username="user_a", password="password123")
+        response = self.client.get('/')
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'chores/dashboard.html')
+
+from .models import SwapRequest
+
+class DutySwapViewTest(TestCase):
+    def setUp(self):
+        self.household = Household.objects.create(name="Swap House")
+        self.user1 = CustomUser.objects.create_user(username="swapuser1", password="password123", household=self.household)
+        self.user2 = CustomUser.objects.create_user(username="swapuser2", password="password123", household=self.household)
+        self.schedule = DutySchedule.objects.create(week_start_date=date.today(), assigned_user=self.user1, household=self.household)
+
+    def test_create_swap_request(self):
+        self.client.login(username="swapuser1", password="password123")
+        response = self.client.post('/swaps/', {
+            'action': 'request_swap',
+            'schedule_id': self.schedule.id,
+            'to_user_id': self.user2.id
+        })
+        self.assertRedirects(response, '/swaps/')
+        swap = SwapRequest.objects.get(from_user=self.user1, to_user=self.user2)
+        self.assertEqual(swap.status, 'pending')
+        self.assertEqual(swap.target_schedule, self.schedule)
+
+    def test_accept_swap_request(self):
+        swap = SwapRequest.objects.create(from_user=self.user1, to_user=self.user2, target_schedule=self.schedule, status='pending')
+        self.client.login(username="swapuser2", password="password123")
+        response = self.client.post('/swaps/', {
+            'action': 'accept',
+            'swap_id': swap.id
+        })
+        self.assertRedirects(response, '/swaps/')
+        swap.refresh_from_db()
+        self.assertEqual(swap.status, 'accepted')
+        self.schedule.refresh_from_db()
+        self.assertEqual(self.schedule.assigned_user, self.user2)
