@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+
+{% block title %}Welcome - Onboarding{% endblock %}
+
+{% block content %}
+<h1 style="text-align: center; margin-bottom: 2rem;">Welcome, {{ user.username }}!</h1>
+<p style="text-align: center; color: var(--text-secondary); margin-bottom: 3rem;">To get started, please join an existing household or create a new one.</p>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem;">
+    <!-- Create Household -->
+    <div class="card">
+        <h2 style="margin-bottom: 1rem; color: var(--primary-color);">Create New Household</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Create a new household and become the admin. You'll get a code to invite others.</p>
+        <form method="post">
+            {% csrf_token %}
+            {{ create_form.as_p }}
+            <button type="submit" name="create" class="btn btn-primary">Create</button>
+        </form>
+    </div>
+
+    <!-- Join Household -->
+    <div class="card">
+        <h2 style="margin-bottom: 1rem; color: var(--primary-color);">Join Household</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Have a join code from your roommate or family member? Enter it here.</p>
+        <form method="post">
+            {% csrf_token %}
+            {{ join_form.as_p }}
+            <button type="submit" name="join" class="btn btn-primary">Join</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

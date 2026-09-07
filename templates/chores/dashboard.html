@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - Chores Tracker{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+    <div>
+        <h1 style="color: var(--primary-color);">{{ user.household.name }}</h1>
+        <p style="color: var(--text-secondary);">Join Code: <strong>{{ user.household.join_code }}</strong></p>
+    </div>
+</div>
+
+<div class="card">
+    <h2>My Tasks for Today</h2>
+    <p style="color: var(--text-secondary);">No tasks currently assigned to you.</p>
+</div>
+{% endblock %}
